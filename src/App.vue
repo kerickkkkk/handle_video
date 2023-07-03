@@ -1,5 +1,5 @@
 <script setup>
-import { nextTick, ref } from 'vue'
+import { ref, computed } from 'vue'
 const video= ref(null)
 const deviceList = ref([])
 const currentDeviceId = ref('')
@@ -26,32 +26,28 @@ const enumerateDevices = () => {
       });
   });
 };
-const getCam = async()=>{
-  await enumerateDevices()    
-  // 預設第一個使用 nextTick 還是取用不到數值
-  await nextTick()
-  currentDeviceId.vlaue = deviceList.value[0].deviceId
-}
-const startCam = async() => {
+const handleCam = async() => {
   try {
     if (video.value.srcObject) {
       alert('鏡頭已打開');
       return;
     }
-    if(currentDeviceId.value === ''){
-      alert('請選裝置');
-      return;
+    let constraints = null
+    if( currentDeviceId.value ){
+      constraints = { audio: false, video : {
+        deviceId : currentDeviceId.value
+      } }
+    } else {
+      // 沒有先啟用 會抓不到裝置
+      constraints = { audio: false, video : true }
     }
-
-    const constraints = { audio: false, video : {
-      deviceId : currentDeviceId.value
-    } }
 
     const stream = await navigator.mediaDevices.getUserMedia(constraints)
     video.value.srcObject = stream;
     video.value.onloadedmetadata = () => {
       video.value.play();
     };
+    await enumerateDevices() 
   } catch (error) {
     alert(error.message);
   }
@@ -89,14 +85,19 @@ const capturePic = () => {
   link.click();
 }
 
+const cuurentLabel = computed(()=>{
+  return currentDeviceId.value === '' ? '' :` : ${(deviceList.value.find(item => item.deviceId === currentDeviceId.value)).label}`
+})
 
 </script>
 
 <template>
 <video ref="video" width="500"></video>
 <hr>
-<button type="button" @click="getCam">取得視訊裝置</button>
-<button type="button" @click="startCam">開啟視訊裝置</button>
+
+<button type="button" @click="handleCam">
+  {{`開啟視訊裝置 ${ cuurentLabel }`}}
+</button>
 <button type="button" @click="stopCam">停止視訊</button>
 <button type="button" @click="capturePic">截圖</button>
 
@@ -107,7 +108,8 @@ const capturePic = () => {
     </label>
     <select 
       id="deviceList"
-      v-model="currentDeviceId">
+      v-model="currentDeviceId"
+      @change = 'handleCam'>
       <option 
         v-for="device in deviceList"
         :key="device.deviceId"
